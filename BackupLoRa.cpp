@@ -23,31 +23,6 @@ SX1262 radio = new Module(hal, RFM_NSS, RFM_DIO1, RFM_RST, RFM_BUSY);
 int transmissionState = RADIOLIB_ERR_NONE;
 bool transmitFlag = false;
 volatile bool operationDone = false;
-        static int alarm_num = 0;
-        static int alarm_irq = timer_hardware_alarm_get_irq_num(timer_hw, 0);
-        static volatile bool time_out = false;;
-        static void alarm_itrHandler(void){
-            hw_clear_bits(&timer_hw->intr, 1u << alarm_num);
-            time_out = true;
-        }
-        void alarm_init(){
-            // Enable the interrupt for our alarm (the timer outputs 4 alarm irqs)
-            hw_set_bits(&timer_hw->inte, 1u << alarm_num);
-            // Set irq handler for alarm irq
-            irq_set_exclusive_handler(alarm_irq, alarm_itrHandler);
-            // Enable the alarm irqf
-            irq_set_enabled(alarm_irq, true);
-        }
-      
-        void setAlarm(uint32_t ms){
-            time_out = false;
-            uint64_t target = timer_hw->timerawl + ms*1000;
-            timer_hw->alarm[alarm_num] = (uint32_t) target;
-        }
-        bool alarmTimedOut(){
-            return time_out;
-        }
-
 void setFlag(void){
     operationDone = true;
 }
@@ -74,7 +49,6 @@ int main()
   radio.setWhitening(true, WHITENING_INITIAL);
   radio.explicitHeader();
 
-   // int state = goFSK(radio);//fsk
 
     radio.setDio1Action(setFlag);
      #if defined(INITIATING_NODE)
@@ -98,14 +72,7 @@ int main()
 
     while(1){
 
-    // reset flag
-    if (alarmTimedOut()) {
-      printf("operation timed out! fallback to LoRa!\n");
-      // try to reset the module
-      radio.reset();
-      goLora(radio);
-      continue;
-    }
+   if (operationDone){
     operationDone = false;
     
     if(transmitFlag) {
@@ -133,7 +100,6 @@ int main()
       int state = radio.readData(str,50);
 
       if (state == RADIOLIB_ERR_NONE) {
-        setAlarm(2000);
         // packet was successfully received
         printf("[SX1262] Received packet!\n");
 
@@ -153,7 +119,7 @@ int main()
 
       }
 
-      radio.finishReceive();
+     // radio.finishReceive();
 
       // wait a second before transmitting again
       hal->delay(1000);
@@ -165,4 +131,5 @@ int main()
     }
 
 }
+    }
 }
